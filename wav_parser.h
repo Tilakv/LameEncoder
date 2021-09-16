@@ -67,20 +67,7 @@ int check_wav(const char * inFile, const char * path )
     cout << "Header Read " << bytesRead << " bytes." << endl;
     if (bytesRead > 0)
     {
-        //Read the data
-        uint16_t bytesPerSample = wavHeader.bitsPerSample / 8;      //Number     of bytes per sample
-        //uint64_t numSamples = wavHeader.ChunkSize / bytesPerSample; //How many samples are in the wav file?
-        //static const uint16_t BUFFER_SIZE = 4096;
-        /*  int8_t* buffer = new int8_t[BUFFER_SIZE];
-        while ((bytesRead = fread(buffer, sizeof buffer[0], BUFFER_SIZE / (sizeof buffer[0]), wavFile)) > 0)
-        {
-         
-            cout << "Read " << bytesRead << " bytes." << endl;
-        }
-        delete [] buffer;
-        buffer = nullptr;*/
         filelength = getFileSize(wavFile);
-        
         cout << "File is                    :" << filelength << " bytes." << endl;
         cout << "RIFF header                :" << wavHeader.RIFF[0] << wavHeader.RIFF[1] << wavHeader.RIFF[2] << wavHeader.RIFF[3] << endl;
         cout << "WAVE header                :" << wavHeader.WAVE[0] << wavHeader.WAVE[1] << wavHeader.WAVE[2] << wavHeader.WAVE[3] << endl;
@@ -108,9 +95,7 @@ int getFileSize(FILE* inFile)
 {
     int fileSize = 0;
     fseek(inFile, 0, SEEK_END);
-    
     fileSize = ftell(inFile);
-    
     fseek(inFile, 0, SEEK_SET);
     return fileSize;
 }

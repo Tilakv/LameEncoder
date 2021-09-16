@@ -70,7 +70,7 @@ public:
         return false;
     }
     
-    bool encodePCM( const string pcmInput, const string path, MP3 &lameobj);
+    bool encodePCM( const string pcmInput, const string path, MP3 lameobj);
 
 };
 

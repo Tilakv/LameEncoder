@@ -18,118 +18,74 @@ extern "C" {
 #include <lame/lame.h>
 }
 
-bool MP3 :: encodePCM(const string pcmInput, const string path, MP3 &lameobj ){
+bool MP3 :: encodePCM(const string pcmInput, const string path, MP3 lameobj ){
+    static constexpr auto WAV_BUFFER_SIZE = 8192;
+    static constexpr auto MP3_BUFFER_SIZE = 8192;
     string absolute_fpath = path + "/" + pcmInput;
-    std::ifstream wav;
-    std::ofstream mp3;
+    std::FILE *wav = std::fopen(absolute_fpath.c_str(), "rb");
+    
     const string ext = {"mp3"};
-    
-    wav.exceptions(std::ifstream::failbit);
-    mp3.exceptions(std::ifstream::failbit);
-    
-    const size_t bytes_per_sample = 2 * sizeof(int16_t);
-    
-    const size_t PCM_SIZE = 8192;
-    const size_t MP3_SIZE = 8192;
-    int16_t pcm_buffer[PCM_SIZE * 2];
     string output(absolute_fpath);
     output.replace(output.end() - ext.length(), output.end(), ext);
     
+    std::FILE *mp3 = std::fopen(output.c_str(), "wb");
+   
+  
+    size_t read{1};
+    int32_t write{0};
     
-    wav.exceptions(std::ifstream::failbit);
-    try {
-        wav.open(absolute_fpath, std::ios_base::binary);
-        mp3.open(output, std::ios_base::binary);
-        cout << "input file stream has no errors" <<endl ;
+    //static int count = 0;
+    //static std::streamsize s;
+    short int wav_buffer[WAV_BUFFER_SIZE * 2];
+    unsigned char mp3_buffer[MP3_BUFFER_SIZE];
+    const size_t bytes_per_sample = 1 * sizeof(int16_t);
+    cout << "MPEG mode inside function is " << lame_get_mode(lameobj.gfp)<< "  and bitrate is  " << lame_get_brate(lameobj.gfp)<< '\n';
+    while (read != 0){
         
+        read = std::fread(wav_buffer, 2 * sizeof (short int), WAV_BUFFER_SIZE, wav);
+        //read = read / bytes_per_sample;
+        cout << "reading  "<< read << "bytes each one size " << 2 * sizeof (wav_buffer)<< endl;
+        if (read == 0) {
+            cout << "Finally flushing " << endl;
+            write = lame_encode_flush(lameobj.gfp, mp3_buffer, MP3_BUFFER_SIZE);
+        } else {
+            //cout << "Encoding to mp3  " <<read << " bytes " << endl;
+            
+            //Interleaved mode available from LAME 3.100 ver
+            
+            write = lame_encode_buffer_interleaved(lameobj.gfp, wav_buffer, read, mp3_buffer, MP3_BUFFER_SIZE);
+            //cout << "writing to mp3  " << write << "bytes" << endl;
         }
-     catch (std::ifstream::failure e) {
-            cout << "Error opening input/output file: " << std::strerror(errno) << endl;
-         return false;
-         
-        }
-    wav.seekg (0, wav.end);
-    size_t length = 8192;
-    wav.seekg (0, wav.beg);
-    unsigned char mp3_buffer[length];
-    char * buffer = new char [length];
-    std::cout << "Reading " << length << " characters... " << endl;
-    // read data as a block:
-    
-    std::vector<char> buffer_1 (4,0);
-    /*while (!wav.tellg()){
-    //wav.read (wav,length);
-    cout << "wav buffer size  after read is " << sizeof(buffer) << endl;
-    }*/
-    int write = 0;
-    
-    std::vector<int> vec {1, 2, 3};
-    //const int* test = vec.data();
-    
-    cout << *vec.data() <<endl;
-    static int count = 0;
-    static std::streamsize s;
-    while(!wav.eof() && count <48) {
         
-        wav.read(buffer_1.data(), buffer_1.size());
-        s=wav.gcount();
-        
-        cout << "wav buffer read is"  << buffer_1.data() << endl;
-        ///do with buffer
-        count++;
+        fwrite(mp3_buffer, write, 1, mp3);
     }
-    
-    std::cout << "Read after " << s << " characters... " << endl ;
-    
-    std::cout << "encoded " << write << " characters... " << endl;
-    
-    //write = lame_encode_flush(lameobj.gfp, reinterpret_cast<int16_t *> (buffer) , length);
-    
-    mp3.write(reinterpret_cast<char*>(mp3_buffer), write);
-    
+    fclose(mp3);
+    fclose(wav);
+    lame_close(lameobj.gfp);
     cout << "MP3 buffer size is " << sizeof(mp3_buffer) << endl;
 
-    wav.close();
-    mp3.close();
-    
-    /*while (wav.good()) {
-        int write = 0;
-        wav.read(reinterpret_cast<char*>(pcm_buffer), sizeof(pcm_buffer));
-        size_t read = wav.gcount()/ bytes_per_sample;
-        
-        cout << "read " << read << "  bytes" << endl;
-        
-        
-        if (read == 0)
-        {
-            cout << "Read is now zero, flushing " << endl;
-            write = lame_encode_flush(MP.gfp, mp3_buffer, MP3_SIZE);
-        }
-        else
-        {
-           
-           write = lame_encode_buffer_interleaved(MP.gfp, pcm_buffer, read, mp3_buffer, MP3_SIZE);
-           cout << "in else block writing PCM data " << write  << "  bytes written  "<< endl;
-           mp3.write(reinterpret_cast<char*>(mp3_buffer), write);
-        
-        }
-    }*/
     return true;
     
 }
 
 int main(int argc, const char * argv[])
 {
+    if(argc != 2) {
+        cout << "Please provide wav dir path as argument to this program.";
+        return -1;
+    }
     MP3 MP;
-    MP.setSamplerate(44100);
-    MP.setBitrate(128);
-    MP.setLameMode(0);
-    MP.setNumchannels(2);
-    
+    MP.setSamplerate(48000);
+    MP.setBitrate(256);
+    //MP.setLameMode(0);
+    //MP.setNumchannels(2);
+    lame_set_mode(MP.gfp, STEREO);
+    lame_set_VBR(MP.gfp, vbr_default);
+    lame_set_VBR_q(MP.gfp, 5);
     std::cout << "Hello, this should create Lame mp3 encoder!\n";
     
-    lame_set_quality(MP.gfp,5);
-    //lame_set_mode(MP.gfp, DUAL_CHANNEL);
+    lame_set_quality(MP.gfp,2);
+    
     cout << "MPEG mode is " << lame_get_mode(MP.gfp)<< '\n';
     
     if (int ret_code = lame_init_params(MP.gfp) == -1)
@@ -138,13 +94,11 @@ int main(int argc, const char * argv[])
     //Dir handling and filtering wav files
     DIR * dir;
     struct dirent *ent;
-    
     vector<string> wavFiles;
 
     static int numFiles = 0;
-    
     if ((dir = opendir(argv[1])) != NULL) {
-        /* print all the wav files (only) within the given directory */
+        /* add to string file vector all the wav files (only) & parse within the given directory */
         
         while ((ent = readdir (dir)) != NULL) {
             if (MP.checkfileExtension(ent->d_name) == true && check_wav(reinterpret_cast<char*>(&ent->d_name), argv[1])== 0) {
@@ -153,7 +107,6 @@ int main(int argc, const char * argv[])
             }
         }
         cout << "Total wav files in the dir are " << numFiles << endl;
-       
         closedir (dir);
  
         //int numofBytes = lame_encode_buffer(MP.gfp, short int leftpcm[], short int rightpcm[], int num_samples,char *mp3buffer,int  mp3buffer_size);
@@ -164,15 +117,10 @@ int main(int argc, const char * argv[])
         return EXIT_FAILURE;
       
     }
-  
-    if(argc != 2) {
-        cout << "You need to supply one argument to this program.";
-        return -1;
-    }
     
     static string path = argv[1];
     
-    MP.encodePCM(wavFiles[0], path, MP);
+    MP.encodePCM(wavFiles[2], path, MP);
    
     return 0;
     
