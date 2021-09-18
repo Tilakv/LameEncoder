@@ -19,6 +19,8 @@ private:
     
 public:
     lame_global_flags * gfp;
+    string abs_path;
+    vector<string> wavFiles;
     
 public:
     MP3()
@@ -29,7 +31,7 @@ public:
     
     void setSamplerate(size_t samp_rate){
         sample_rate = samp_rate;
-        cout << "samplerate is " << sample_rate <<endl;
+        cout << "setting samplerate is " << sample_rate <<endl;
         lame_set_in_samplerate(gfp, sample_rate);
     }
     
@@ -43,7 +45,11 @@ public:
     {
         lame_set_mode(gfp, static_cast<MPEG_mode>(mode));
     }
-    
+    int lamegetQuality()
+    {
+        cout << "getting quality  ";
+        return lame_get_quality(gfp);
+    }
     void setNumchannels(int  channel)
     {
         lame_set_num_channels(gfp, channel);
@@ -71,8 +77,17 @@ public:
     }
     
     bool encodePCM( const string pcmInput, const string path, MP3 lameobj);
+    bool encodePCM_thread(void *arglist);
 
 };
 
-
+class targ : public MP3
+{
+private:
+    int p;
+    char q[10];
+public:
+    string  path;
+    void *arg;
+   };
 #endif /* encoder_h */
