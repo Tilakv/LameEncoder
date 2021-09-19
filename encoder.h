@@ -9,7 +9,7 @@
 #ifndef encoder_h
 #define encoder_h
 using namespace std;
-
+#include <thread>
 class MP3{
     
 private:
@@ -77,7 +77,8 @@ public:
     }
     
     bool encodePCM( const string pcmInput, const string path, MP3 lameobj);
-    bool encodePCM_thread(void *arglist);
+    static bool encodePCM_thread(void *arglist);
+    std::thread spawn();
 
 };
 
