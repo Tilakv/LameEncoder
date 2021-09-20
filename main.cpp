@@ -18,14 +18,18 @@ extern "C" {
 #include <lame/lame.h>
 }
 #include <thread>
+#include <inttypes.h>
 #include <chrono>
-
+#include <cstdlib>
 //typedef void * (*THREADFUNCPTR)(void *);
+
+
+
  bool MP3 :: encodePCM_thread(void *arglist){
      
     static pthread_mutex_t encoderStart = PTHREAD_MUTEX_INITIALIZER;
     std::thread::id this_id = std::this_thread::get_id();
-     cout << "this thread id is " << this_id << endl;
+    cout << "this thread id is " << this_id << endl;
     const size_t coreCount = thread::hardware_concurrency();
      
      //cout << "From the function, the thread id" << pthread_self() <<endl;
@@ -73,30 +77,44 @@ extern "C" {
             cout << "Finally flushing " << endl;
             cout << "mp3_len is" << mp3_len << endl;
             pthread_mutex_unlock(&encoderStart);
-            
             //memset(wav_buffer, 0x00, sizeof wav_buffer);
-
-            
             write = lame_encode_flush(((targ*)arglist)->gfp, mp3_buffer, MP3_BUFFER_SIZE);
         } else {
             //Interleaved mode available from LAME 3.100 ver
             write = lame_encode_buffer_interleaved(((targ*)arglist)->gfp, wav_buffer, read, mp3_buffer, MP3_BUFFER_SIZE);
             mp3_len += write;
         }
-         
-        //cout << "coming out of lameencoder bef fwrite" << endl;
-       
-        fwrite(mp3_buffer, write, 1, mp3);
-        
-        
+         /* Pseudo code
+          * check if Totalfilesize % #cores ==0 (Modulo)
+          * if not then assign last thread the last chunk amount of bytes from the wav file
+          * Prepare Nbytes for each thread
+          *NBytes = Total filesize/ #cores (CN)
+          *Thread 1 -fix CPU affinity to work only on NBytes (#chunk 1)
+          *Read only NBytes from wav file into mp3buffer
+          *Advance or move the static shared pointer to NBytes (Next thread should read from offset)
+          *Lock and wait until thread write all buffer to mp3buffer (meaning encode call done for Nbytes)
+          *Thread 2- fix CPU affinity to work only on NBytes (#chunk 2)
+          *Move the pointer offset to Nbytes and advance it to next Nbytes+
+          *Lock and wait until Thread 2 write all buffer to mp3buffer
+          *continue for the next threads
+          *
+          *call lame_encode_for only N Bytes
+          *check fwrite only after CN*N Bytes are processed (alternatively read==0)
+          *Finally write into mp3 file lock this until all the threads are done (make a call to joinable before fwrite)
+          *
+          *
+          *
+          * */
 
-        
+        fwrite(mp3_buffer, write, 1, mp3);
+
     }
     
     fclose(mp3);
     fclose(wav);
     lame_close(((targ*)arglist)->gfp);
     cout << "MP3 buffer size is " << sizeof(mp3_buffer) << endl;
+
     return 0;
 }
 
@@ -164,17 +182,14 @@ int main(int argc, const char * argv[])
     
     //(void)pthread_join(id1, NULL);
     //pthread_exit((void*)0);
-    
+
     std::thread t1(MP3::encodePCM_thread, arg);
     std::cout << "before starting, joinable: " << std::boolalpha << t1.joinable() <<endl;
     t1.join();
     std::cout << "after starting, joinable: " << std::boolalpha << t1.joinable() <<endl;
+
     return 0;
     
-    
-  
-    
 }
-
 
 
