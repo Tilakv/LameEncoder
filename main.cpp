@@ -32,12 +32,12 @@ extern "C" {
     cout << "this thread id is " << this_id << endl;
     const size_t coreCount = thread::hardware_concurrency();
      
-     //cout << "From the function, the thread id" << pthread_self() <<endl;
+    cout << "From the function, the thread id" << pthread_self() <<endl;
     cout << "number of cores are " << coreCount << endl;
     static constexpr auto WAV_BUFFER_SIZE = 8192;
     static constexpr auto MP3_BUFFER_SIZE = 8192;
     const string path = ((targ*)arglist)->abs_path;
-    const string pcmInput =((targ*)arglist)->wavFiles[2];
+    const string pcmInput =((targ*)arglist)->wavFiles[0];
     string absolute_fpath = path + "/" + pcmInput;
     std::FILE *wav = std::fopen(absolute_fpath.c_str(), "rb");
     
@@ -47,7 +47,18 @@ extern "C" {
     
     std::FILE *mp3 = std::fopen(output.c_str(), "wb");
     
-    
+    std::fseek(wav, 0, SEEK_END);
+    std::size_t filesize = std::ftell(wav);
+    cout << "Filesize is " << filesize <<endl;
+    static size_t threadbuffer_tail  = 0;
+    /*Prepare chunk for each Thread*/
+    size_t threadbuffer = filesize/coreCount;
+    if (filesize % coreCount ==0)
+    size_t threadbuffer_tail = threadbuffer;
+    else
+    	threadbuffer_tail = (filesize - (coreCount-1)*threadbuffer);
+   cout <<"threadbuffer is " << threadbuffer << "  threadbuffer tail is " << threadbuffer_tail;
+
     size_t read{1};
     int32_t write{0};
     
@@ -57,6 +68,7 @@ extern "C" {
     short int wav_buffer[WAV_BUFFER_SIZE * 2];
     //pthread_mutex_unlock(&encoderStart);
     unsigned char mp3_buffer[MP3_BUFFER_SIZE];
+    static bool stopread = false;
     //const size_t bytes_per_sample = 1 * sizeof(int16_t);
     
     //cout << "MPEG mode inside function is " << lame_get_mode(((targ*)arglist)->gfp)<< "  and bitrate is  " << lame_get_brate(lameobj.gfp)<< '\n';
@@ -64,26 +76,29 @@ extern "C" {
      static int mp3_len =0;
      cout  << "thread access" << endl;
      //pthread_mutex_lock(&encoderStart);
+
      pthread_mutex_lock(&encoderStart);
+     std::fseek(wav, 2000*WAV_BUFFER_SIZE, SEEK_SET);
      while (read != 0){
-        
-        read = std::fread(wav_buffer, 2 * sizeof (short int), WAV_BUFFER_SIZE, wav);
-          void * testPointer =  &wav_buffer;
-         //testPointer = testPointer+ read;
-         //cout << "testpointer is " << &testPointer << endl;
-        //read = read / bytes_per_sample;
-        //cout << "reading  "<< read << "bytes each one size " << 2 * sizeof (wav_buffer)<< endl;
+
+    	 read = std::fread(wav_buffer, 2 * sizeof (short int), WAV_BUFFER_SIZE, wav);
+        cout << "reading  "<< read << "bytes each one size " << 2 * sizeof (wav_buffer)<< endl;
+        cout << "ftell(wav) is" << ftell(wav);
         if (read == 0) {
-            cout << "Finally flushing " << endl;
-            cout << "mp3_len is" << mp3_len << endl;
-            pthread_mutex_unlock(&encoderStart);
-            //memset(wav_buffer, 0x00, sizeof wav_buffer);
+            cout << "read ==0 " << endl;
+
+
             write = lame_encode_flush(((targ*)arglist)->gfp, mp3_buffer, MP3_BUFFER_SIZE);
+
+            //read = 0;
+            pthread_mutex_unlock(&encoderStart);
+
         } else {
             //Interleaved mode available from LAME 3.100 ver
             write = lame_encode_buffer_interleaved(((targ*)arglist)->gfp, wav_buffer, read, mp3_buffer, MP3_BUFFER_SIZE);
             mp3_len += write;
         }
+
          /* Pseudo code
           * check if Totalfilesize % #cores ==0 (Modulo)
           * if not then assign last thread the last chunk amount of bytes from the wav file
@@ -107,7 +122,6 @@ extern "C" {
           * */
 
         fwrite(mp3_buffer, write, 1, mp3);
-
     }
     
     fclose(mp3);
@@ -188,8 +202,19 @@ int main(int argc, const char * argv[])
     t1.join();
     std::cout << "after starting, joinable: " << std::boolalpha << t1.joinable() <<endl;
 
+#if(0)
+    std::thread t2(MP3::encodePCM_thread, arg);
+    std::cout << "before starting, joinable: " << std::boolalpha << t1.joinable() <<endl;
+    t2.join();
+    std::cout << "after starting, joinable: " << std::boolalpha << t1.joinable() <<endl;
+#endif
+
     return 0;
     
+    
+  
+    
 }
+
 
 
