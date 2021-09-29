@@ -21,6 +21,7 @@ public:
     lame_global_flags * gfp;
     string abs_path;
     vector<string> wavFiles;
+    std::thread threadvector;
     
 public:
     MP3()
@@ -75,10 +76,26 @@ public:
         
         return false;
     }
-    
+    MP3 (MP3 &MP){
+        vector<thread> vectorThreads;
+        vectorThreads.reserve(4);
+        void * arg =  &MP;
+        for (int i = 0; i < 4; ++i) {
+            vectorThreads.emplace_back(std::thread(MP3::encodePCM_thread, std::ref(arg)));
+        }
+        
+        for (int i = 0; i < 4; ++i) {
+            
+            vectorThreads[i].join();
+            if(!vectorThreads[i].joinable())
+                cout  << "done the loop"  <<endl;
+            
+        }
+    }
+
     bool encodePCM( const string pcmInput, const string path, MP3 lameobj);
     static bool encodePCM_thread(void *arglist);
-    std::thread spawn();
+    
 
 };
 
@@ -90,5 +107,9 @@ private:
 public:
     string  path;
     void *arg;
+public:
+    void joinable (std::thread t);
    };
+
+
 #endif /* encoder_h */
