@@ -23,17 +23,18 @@ extern "C" {
 #include <cstdlib>
 
 
-static const size_t coreCount = thread::hardware_concurrency();
+
 
 
 bool MP3 :: encodePCM_thread(void *arglist){
     
     static pthread_mutex_t encoderStart = PTHREAD_MUTEX_INITIALIZER;
-    pthread_mutex_lock(&encoderStart);
+
     std::thread::id this_id = std::this_thread::get_id();
      //((targ*)arglist)->threadvector = this_id;
     //bool status = this_id.joinable();
     cout << "this thread start of the loop is " << this_id << endl;
+
     static constexpr auto WAV_BUFFER_SIZE = 8192;
     static constexpr auto MP3_BUFFER_SIZE = 8192;
     const string path = ((targ*)arglist)->abs_path;
@@ -51,14 +52,42 @@ bool MP3 :: encodePCM_thread(void *arglist){
     std::fseek(wav, 0, SEEK_END);
     std::size_t filesize = std::ftell(wav);
     cout << "Filesize is " << filesize <<endl;
-    static size_t threadbuffer_tail  = 0;
+
+
+    pthread_mutex_lock(&encoderStart);
+    const size_t fread_sector = 2 * sizeof (short int) * WAV_BUFFER_SIZE;
+
+    //size_t threadbuffer = (filesize/coreCount);
+    //cout << "Thread buffer is" << threadbuffer << endl;
+
+
+
+
+    size_t threadbuffer_tail = 0;
+    static size_t bufer_per_core_tail =0;
     /*Prepare chunk for each Thread*/
-    size_t threadbuffer = filesize/coreCount;
-    if (filesize % coreCount ==0)
+    size_t num_fread_chunks = filesize/fread_sector;
+    size_t bufer_per_core = (num_fread_chunks/coreCount) *fread_sector;
+    cout << "bufer_per_core before is  " << bufer_per_core << endl;
+
+    if (filesize % fread_sector == 0){
+    	bufer_per_core_tail = bufer_per_core;
+    cout << "bufer_per_core is  " << bufer_per_core << endl;
+    }
+
+    else{
+    	bufer_per_core_tail  = bufer_per_core + (filesize % fread_sector);
+    	cout << "bufer_per_core_tail is  " << bufer_per_core_tail << endl;
+    }
+    cout << "num_fread_chunks  " << num_fread_chunks << endl;
+
+
+
+    /*if (filesize % coreCount ==0)
         size_t threadbuffer_tail = threadbuffer;
     else
         threadbuffer_tail = (filesize - (coreCount-1)*threadbuffer);
-    //cout <<"threadbuffer is " << threadbuffer << "  threadbuffer tail is " << threadbuffer_tail;
+    //cout <<"threadbuffer is " << threadbuffer << "  threadbuffer tail is " << threadbuffer_tail;*/
     
     size_t read{1};
     int32_t write{0};
@@ -69,6 +98,7 @@ bool MP3 :: encodePCM_thread(void *arglist){
     short int wav_buffer[WAV_BUFFER_SIZE * 2];
     
     unsigned char mp3_buffer[MP3_BUFFER_SIZE];
+
     //static bool stopread = false;
     
     //const size_t bytes_per_sample = 1 * sizeof(int16_t);
@@ -82,24 +112,31 @@ bool MP3 :: encodePCM_thread(void *arglist){
     cout << "access is" << access << endl ;
     cout << "read is " << read << endl;
     static size_t setonce =0;
-    static bool switchthread =false;
+    static bool firstthread =true;
     static bool stopaccess1 =false;
     static bool stopaccess2 =false;
-    /* Take first thread and store (filesize/numcore)/32768 Bytes chunk-1 */
-    /* Only last thread stores filesize - (n-1)* threadsize*/
+
     /*This thread id store it in a vector if vector_tid [0] -->Process file from shared pointer vector [0]
     If vector_tid[0].joinable() then start vector_tid[1]/
     check if last thread then exit out of while loop */
+
+    if (access ==0)
     std::fseek(wav, 0, SEEK_SET);
-    while (read!=0){
+
+    if (firstthread ==true){
+      do{
         using namespace std::this_thread;
         cout << "this thread id in loop is " << this_id << endl;
         //if (access == 0 &&setonce ==0)
         
         //setonce++;
         //cout << "ftell(wav) in first thread is  " << ftell(wav) << endl;
+
         read = std::fread(wav_buffer,  2 * sizeof (short int) , WAV_BUFFER_SIZE, wav);
-        //cout << "reading " << read << " bytes" << endl;
+        if (ftell(wav) == bufer_per_core)
+        	return 0;
+        cout << "ftell(wav) in first thread is  " << ftell(wav) << endl;
+        cout << "reading " << read << " bytes" << endl;
         //Bind to thread ID and not to static variable
         /*if (access ==1 &&stopaccess1 ==false){
              std::fseek(wav, 120*WAV_BUFFER_SIZE, SEEK_SET);
@@ -122,11 +159,12 @@ bool MP3 :: encodePCM_thread(void *arglist){
         flush: {
             //if (access ==2)
             write = lame_encode_flush(((targ*)arglist)->gfp, mp3_buffer, MP3_BUFFER_SIZE);
-            //cout << "coming out of unlock" << endl;
+            cout << "coming out of unlock" << endl;
             cout << "mp3 len is" << mp3_len << endl;
             
             access++;
-            switchthread= true;
+            bufer_per_core+= bufer_per_core;
+            //switchthread= true;
             //std::this_thread::sleep_for (std::chrono::milliseconds(900));
             pthread_mutex_unlock(&encoderStart);
             return 0;
@@ -144,14 +182,14 @@ bool MP3 :: encodePCM_thread(void *arglist){
             
         }
        
-        /*if (ftell(wav) >= (40*WAV_BUFFER_SIZE) && access ==0){
+        if (ftell(wav) >= (bufer_per_core) && access ==0){
             cout << "ftell inside first thread is thread is " << ftell(wav) << endl;
             //fseek = ftell(wav);
             //stopread = true;
-            goto write;
-            //goto flush;
+            //goto write;
+            goto flush;
             //write = lame_encode_flush(((targ*)arglist)->gfp, mp3_buffer, MP3_BUFFER_SIZE);
-        }*/
+        }
         /*else if (ftell(wav) >= (120*WAV_BUFFER_SIZE) && access ==1) {
              //cout << "ftell inside second thread is " << ftell(wav) << endl;
             //write = lame_encode_flush(((targ*)arglist)->gfp, mp3_buffer, MP3_BUFFER_SIZE);
@@ -190,11 +228,13 @@ bool MP3 :: encodePCM_thread(void *arglist){
          *
          * */
         //cout << "writing with ftell "<< ftell(wav) << endl;
-    write:
+    write:{
+    cout << "writing with "<< write << "bytes" << endl;
     fwrite(mp3_buffer, write, 1, mp3);
-    
-        
+    //goto flush;
     }
+        
+    } while(read !=0);
     
     fclose(mp3);
     fclose(wav);
@@ -202,6 +242,7 @@ bool MP3 :: encodePCM_thread(void *arglist){
     cout << "MP3 buffer size is " << sizeof(mp3_buffer) << endl;
     
     return 0;
+    }
 }
 
 int main(int argc, const char * argv[])
