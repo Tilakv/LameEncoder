@@ -10,6 +10,10 @@
 #define encoder_h
 using namespace std;
 #include <thread>
+#include <vector>
+#include <chrono>
+static const size_t coreCount = thread::hardware_concurrency();
+
 class MP3{
     
 private:
@@ -78,17 +82,17 @@ public:
     }
     MP3 (MP3 &MP){
         vector<thread> vectorThreads;
-        vectorThreads.reserve(4);
+        vectorThreads.reserve(coreCount);
         void * arg =  &MP;
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < coreCount; ++i) {
             vectorThreads.emplace_back(std::thread(MP3::encodePCM_thread, std::ref(arg)));
         }
         
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < coreCount; ++i) {
             
             vectorThreads[i].join();
             if(!vectorThreads[i].joinable())
-                cout  << "done the loop"  <<endl;
+                cout  << "done the thread loop"  <<endl;
             
         }
     }
@@ -110,6 +114,5 @@ public:
 public:
     void joinable (std::thread t);
    };
-
 
 #endif /* encoder_h */
