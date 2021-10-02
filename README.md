@@ -1,6 +1,6 @@
 Steps to compile.
 1) Install lame library (ver 3.100)
-   --> spt get install lame 
+   --> apt get install lame 
 2) Check for the static library
    --> /us/include/libmp3lame.so
 3) Install pthread if not provided in Linux 
