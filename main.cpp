@@ -22,14 +22,10 @@ extern "C" {
 #include <chrono>
 #include <cstdlib>
 
-
-
-
-
 bool MP3 :: encodePCM_thread(void *arglist){
     
     static pthread_mutex_t encoderStart = PTHREAD_MUTEX_INITIALIZER;
-
+   
     std::thread::id this_id = std::this_thread::get_id();
      //((targ*)arglist)->threadvector = this_id;
     //bool status = this_id.joinable();
@@ -47,14 +43,19 @@ bool MP3 :: encodePCM_thread(void *arglist){
     output.replace(output.end() - ext.length(), output.end(), ext);
     
     std::FILE *mp3 = std::fopen(output.c_str(), "wb");
+    pthread_mutex_lock(&encoderStart);
+    cout << "after fwrite  ftell mp3 is before loop start is  " << ftell(mp3) << endl;
     
+    std::fseek(mp3, 0, SEEK_END);
+    std::size_t filesize = std::ftell(mp3);
+    cout << "Filesize mp3 is " << filesize <<endl;
     
     std::fseek(wav, 0, SEEK_END);
-    std::size_t filesize = std::ftell(wav);
-    cout << "Filesize is " << filesize <<endl;
+    filesize = std::ftell(wav);
+    cout << "Filesize wav is " << filesize <<endl;
 
 
-    pthread_mutex_lock(&encoderStart);
+   
     const size_t fread_sector = 2 * sizeof (short int) * WAV_BUFFER_SIZE;
 
     //size_t threadbuffer = (filesize/coreCount);
@@ -111,47 +112,33 @@ bool MP3 :: encodePCM_thread(void *arglist){
     
     cout << "access is" << access << endl ;
     cout << "read is " << read << endl;
-    static size_t setonce =0;
-    static bool firstthread =true;
-    static bool stopaccess1 =false;
-    static bool stopaccess2 =false;
-
+   
     /*This thread id store it in a vector if vector_tid [0] -->Process file from shared pointer vector [0]
     If vector_tid[0].joinable() then start vector_tid[1]/
     check if last thread then exit out of while loop */
 
-    if (access ==0)
+    if (access ==0){
     std::fseek(wav, 0, SEEK_SET);
-
-    if (firstthread ==true){
+        cout <<"setting fseek to start" << endl;
+    }
+    if (access ==1){
+        std::fseek(wav, bufer_per_core, SEEK_SET);
+        cout <<"setting fseek to 1" << endl;
+    }
+    if (access ==2){
+        std::fseek(wav, 2*bufer_per_core, SEEK_SET);
+        cout <<"setting fseek to 2" << endl;
+    }
+    if (access ==3){
+        std::fseek(wav, 3*bufer_per_core, SEEK_SET);
+        cout <<"setting fseek to 3" << endl;
+    }
       do{
         using namespace std::this_thread;
         cout << "this thread id in loop is " << this_id << endl;
-        //if (access == 0 &&setonce ==0)
-        
-        //setonce++;
-        //cout << "ftell(wav) in first thread is  " << ftell(wav) << endl;
-
+        cout << "ftell(wav) before fread is  " << ftell(wav) << endl;
         read = std::fread(wav_buffer,  2 * sizeof (short int) , WAV_BUFFER_SIZE, wav);
-        if (ftell(wav) == bufer_per_core)
-        	return 0;
-        cout << "ftell(wav) in first thread is  " << ftell(wav) << endl;
-        cout << "reading " << read << " bytes" << endl;
-        //Bind to thread ID and not to static variable
-        /*if (access ==1 &&stopaccess1 ==false){
-             std::fseek(wav, 120*WAV_BUFFER_SIZE, SEEK_SET);
-             stopaccess1 =true;
-            //cout << "ftell(wav) in second thread aafter switch is  " << ftell(wav) << endl;
-        }*/
-        //read = std::fread(wav_buffer,  2 * sizeof (short int) , WAV_BUFFER_SIZE, wav);
-        /*if (access ==2 &&stopaccess2 ==false){
-            std::fseek(wav, 240*WAV_BUFFER_SIZE, SEEK_SET);
-            stopaccess2 =true;
-            //cout << "ftell(wav) in third thread after switch is  " << ftell(wav) << endl;
-        }*/
-        
-        
-        
+      
         
         if (read == 0) {
             cout << "read ==0 " << endl;
@@ -161,11 +148,7 @@ bool MP3 :: encodePCM_thread(void *arglist){
             write = lame_encode_flush(((targ*)arglist)->gfp, mp3_buffer, MP3_BUFFER_SIZE);
             cout << "coming out of unlock" << endl;
             cout << "mp3 len is" << mp3_len << endl;
-            
             access++;
-            bufer_per_core+= bufer_per_core;
-            //switchthread= true;
-            //std::this_thread::sleep_for (std::chrono::milliseconds(900));
             pthread_mutex_unlock(&encoderStart);
             return 0;
             
@@ -173,38 +156,11 @@ bool MP3 :: encodePCM_thread(void *arglist){
             
         } else {
             //Interleaved mode available from LAME 3.100 ver
-            //cout << "ftell before write is and " << ftell(wav) << " and read is" << read <<endl;
+            
             write = lame_encode_buffer_interleaved(((targ*)arglist)->gfp, wav_buffer, read, mp3_buffer, MP3_BUFFER_SIZE);
-            //setonce++;
+            cout << "ftell before write is and " << ftell(wav) << " and mp3 write is" << write << "bytes" <<endl;
             mp3_len += write;
-            
-          //std::cout << "thread joinable? " << std::boolalpha << this_id.joinable() <<endl;
-            
-        }
-       
-        if (ftell(wav) >= (bufer_per_core) && access ==0){
-            cout << "ftell inside first thread is thread is " << ftell(wav) << endl;
-            //fseek = ftell(wav);
-            //stopread = true;
-            //goto write;
-            goto flush;
-            //write = lame_encode_flush(((targ*)arglist)->gfp, mp3_buffer, MP3_BUFFER_SIZE);
-        }
-        /*else if (ftell(wav) >= (120*WAV_BUFFER_SIZE) && access ==1) {
-             //cout << "ftell inside second thread is " << ftell(wav) << endl;
-            //write = lame_encode_flush(((targ*)arglist)->gfp, mp3_buffer, MP3_BUFFER_SIZE);
-            goto write;
-            //goto flush;
-            
-        }
-        else if (ftell(wav) >= (filesize) && access ==2) {
-            //cout << "ftell inside third thread is " << ftell(wav) << endl;
-            //write = lame_encode_flush(((targ*)arglist)->gfp, mp3_buffer, MP3_BUFFER_SIZE);
-            goto write;
-            //goto flush;
-            
-        }*/
-        
+            }
         
         /* Pseudo code
          * check if Totalfilesize % #cores ==0 (Modulo)
@@ -229,20 +185,40 @@ bool MP3 :: encodePCM_thread(void *arglist){
          * */
         //cout << "writing with ftell "<< ftell(wav) << endl;
     write:{
-    cout << "writing with "<< write << "bytes" << endl;
-    fwrite(mp3_buffer, write, 1, mp3);
-    //goto flush;
-    }
-        
-    } while(read !=0);
+    cout << "writing with "<< write << "bytes " << " with ftell " << ftell(wav)<< endl;
     
+    fwrite(mp3_buffer, write, 1, mp3);
+    cout << "after fwrite  ftell mp3 is " << ftell(mp3) << endl;
+   
+    }
+          
+          if (ftell(wav) >= (bufer_per_core) && access ==0){
+              cout << "ftell inside first thread is thread access 0  is " << ftell(wav) << endl;
+              goto flush;
+            }
+          if (ftell(wav) >= (2*bufer_per_core) && access ==1){
+              cout << "ftell inside second thread is thread access 1 is " << ftell(wav) << endl;
+              goto flush;
+          }
+          if (ftell(wav) >= (3*bufer_per_core) && access ==2){
+              cout << "ftell inside third thread is thread access 2 is " << ftell(wav) << endl;
+              goto flush;
+          }
+          if (ftell(wav) >= filesize && access ==3){
+              cout << "ftell inside fourth thread is thread access 3 is " << ftell(wav) << endl;
+              goto flush;
+          }
+    } while(read !=0);
+    std::this_thread::sleep_for (std::chrono::milliseconds(900));
     fclose(mp3);
+    
     fclose(wav);
     lame_close(((targ*)arglist)->gfp);
     cout << "MP3 buffer size is " << sizeof(mp3_buffer) << endl;
     
-    return 0;
-    }
+    
+    
+    return true;
 }
 
 int main(int argc, const char * argv[])
