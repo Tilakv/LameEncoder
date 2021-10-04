@@ -25,7 +25,11 @@ public:
     lame_global_flags * gfp;
     string abs_path;
     vector<string> wavFiles;
+    vector<string> pcmInput;
+    vector<string> absolute_fpath;
     std::thread threadvector;
+    vector <ifstream> wavFileVector;
+    
     
 public:
     MP3()

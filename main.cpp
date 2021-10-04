@@ -34,16 +34,32 @@ bool MP3 :: encodePCM_thread(void *arglist){
     static constexpr auto WAV_BUFFER_SIZE = 8192;
     static constexpr auto MP3_BUFFER_SIZE = 8192;
     const string path = ((targ*)arglist)->abs_path;
-    const string pcmInput =((targ*)arglist)->wavFiles[1];
-    string absolute_fpath = path + "/" + pcmInput;
-    std::FILE *wav = std::fopen(absolute_fpath.c_str(), "rb");
+    pthread_mutex_lock(&encoderStart);
+    ifstream file;
+    for (int i = 0; i< ((targ*)arglist)->wavFiles.size();i++)
+    {
+        
+        ((targ*)arglist)->pcmInput.push_back(((targ*)arglist)->wavFiles[i]);
+        cout<< "File name is " << ((targ*)arglist)->pcmInput[i] << endl;
+        ((targ*)arglist)->absolute_fpath.push_back(path + "/"+ ((targ*)arglist)->wavFiles[i]);
+        cout<< "Full path is  " << ((targ*)arglist)->absolute_fpath[i] << endl;
+        //file.open(((targ*)arglist)->absolute_fpath[i]);
+        //((targ*)arglist)->wav = std::fopen(((targ*)arglist)->wavFiles[1].c_str(), "rb");
+    }
     
     const string ext = {"mp3"};
     string output(absolute_fpath);
     output.replace(output.end() - ext.length(), output.end(), ext);
-    
+    const string pcmInput =((targ*)arglist)->wavFiles[1];
+    //string absolute_fpath = path + "/" + pcmInput;
+    vector <std::FILE *> wav;
+    wav[0] = std::fopen(((targ*)arglist)->absolute_fpath[1].c_str(), "rb");
     std::FILE *mp3 = std::fopen(output.c_str(), "wb");
-    pthread_mutex_lock(&encoderStart);
+    
+    
+    
+    
+    
     cout << "after fwrite  ftell mp3 is before loop start is  " << ftell(mp3) << endl;
     
     std::fseek(mp3, 0, SEEK_END);
